@@ -1,12 +1,11 @@
 '''
-check http://wms.lroc.asu.edu/lroc/rdr_product_select?commit=Search&filter%5Beast%5D=&filter%5Bgroup_type%5D%5B%5D=Global+Product&filter%5Blat%5D=&filter%5Blon%5D=&filter%5Bnorth%5D=&filter%5Bprefix%5D%5B%5D=&filter%5Brad%5D=&filter%5Bsouth%5D=&filter%5Btext%5D=&filter%5Btopographic%5D=either&filter%5Bwest%5D=&page=2&per_page=10&show_thumbs=1&sort=time_reverse
-website for footprint products of NAC & WAC images
-
-
+check http://wms.lroc.asu.edu/lroc/thumbnails
+website for more footprint products of NAC & WAC images.
 
 Example
 -------  
-DTM_footprints = "/home/nilscp/tmp/NAC_EQ_FOURTH_EXTENDED_SCIENCE_MISSION_360/NAC_EQ_FOURTH_EXTENDED_SCIENCE_MISSION_360.SHP"
+DTM_footprints = ("/home/nilscp/tmp/NAC_EQ_FOURTH_EXTENDED_SCIENCE_MISSION_360/"
+                 "NAC_EQ_FOURTH_EXTENDED_SCIENCE_MISSION_360.SHP")
 
 
 df_selection = select(DTM_footprints,
@@ -29,11 +28,11 @@ to_shp("/home/nilscp/tmp/NAC_EQ_FOURTH_EXTENDED_SCIENCE_MISSION_360/test2.shp",
 
 import geopandas as gpd
 import numpy as np
+import subprocess
+from pathlib import Path
 
-
-
-
-def select(footprints_of_LRO_product,
+def select(footprints_geopackage,
+           footprints,
            range_latitude,
            range_longitude,
            range_incidence = (0.0, 180.0),
@@ -45,8 +44,10 @@ def select(footprints_of_LRO_product,
     
     Parameters
     ----------
-    footprints_of_LRO_product : shapefile (*.shp) of footprints
-        xxxxxx
+    footprints_geopackage : geopackage containing footprints
+        path
+    footprints : name of the mission
+        str
     range_latitude : tuple of float or int (lat_min, lat_max)
         range of possible values, -90 to 90.
     range_longitude : tuple of float or int (lon_min, lon_max)
@@ -68,21 +69,21 @@ def select(footprints_of_LRO_product,
         width and height of the tile in degrees
     """
     
-    df_DTM_footprints = gpd.read_file(footprints_of_LRO_product)
+    df_DTM_footprints = gpd.read_file(filename=footprints_geopackage, layer=footprints)
     
     # TODO I need to figure why it is not working with the lunar proj. coord
     #df_DTM_footprints.crs = "EPSG:104903"
     
     # selection of latitudes
     lat_selection = np.logical_and(
-        df_DTM_footprints.CENTER_LAT >= range_latitude[0], 
-        df_DTM_footprints.CENTER_LAT <= range_latitude[1])
+        df_DTM_footprints.center_lat >= range_latitude[0],
+        df_DTM_footprints.center_lat <= range_latitude[1])
     
     
     # selection of longitudes
     lon_selection = np.logical_and(
-        df_DTM_footprints.CENTER_LON >= range_longitude[0], 
-        df_DTM_footprints.CENTER_LON <= range_longitude[1])
+        df_DTM_footprints.center_lon >= range_longitude[0],
+        df_DTM_footprints.center_lon <= range_longitude[1])
     
     # selection of footprints for specified latitudes and longitudes
     latlon_selection = np.logical_and(lat_selection, lon_selection)
@@ -90,18 +91,18 @@ def select(footprints_of_LRO_product,
     
     # selection of incidence angles
     inc_selection = np.logical_and(
-            df_latlon_selection.INC_ANGLE >= range_incidence[0], 
-            df_latlon_selection.INC_ANGLE <= range_incidence[1])
+            df_latlon_selection.inc_angle >= range_incidence[0],
+            df_latlon_selection.inc_angle <= range_incidence[1])
     
     # selection of emission angles
     emi_selection = np.logical_and(
-            df_latlon_selection.EMSSN_ANG >= range_emission[0], 
-            df_latlon_selection.EMSSN_ANG <= range_emission[1])
+            df_latlon_selection.emssn_ang >= range_emission[0],
+            df_latlon_selection.emssn_ang <= range_emission[1])
     
     # selection of phase angles
     pha_selection = np.logical_and(
-            df_latlon_selection.PHASE_ANGL >= range_phase[0], 
-            df_latlon_selection.PHASE_ANGL <= range_phase[1])    
+            df_latlon_selection.phase_angl >= range_phase[0],
+            df_latlon_selection.phase_angl <= range_phase[1])
     
     # dataframe selection
     selection = np.logical_and(np.logical_and(inc_selection, emi_selection),
@@ -112,11 +113,13 @@ def select(footprints_of_LRO_product,
     return (df_selection)
 
 
-def get_url_for_download(output_name, df_selection):
+def get_url_for_download(output_filename, df_selection):
     '''   
 
     Parameters
     ----------
+    output_filename : output text filename
+        path.
     df_selection : GeoPandas DataFrame
         DESCRIPTION.
 
@@ -131,9 +134,10 @@ def get_url_for_download(output_name, df_selection):
     wget -nc -i <text_file_containing_urls_to_download>
 
     '''    
-    df_selection["url_nac"] = "http://lroc.sese.asu.edu/data/" + df_selection.FILE_SPECI
+    df_selection["url_nac"] = ("http://lroc.sese.asu.edu/data/" + 
+                               df_selection.file_speci)
     url_nac = df_selection.url_nac
-    url_nac.to_csv(output_name, header=None, index=None, sep=',')
+    url_nac.to_csv(output_filename, header=False, index=None, sep=',')
     
 def to_shp(output_name, df_selection):
     '''
@@ -158,3 +162,22 @@ def to_shp(output_name, df_selection):
 # overlap of a polygon shapefile with footprint     
 def overlap():
     None
+
+
+def download(filename):
+    """
+
+    Parameters
+    ----------
+    filename
+
+    Returns
+    -------
+
+    """
+    filename_p = Path(filename)
+
+    list_files = subprocess.run(["wget", "-nd", "-i", filename_p.as_posix()])
+    print("The exit code was: %d" % list_files.returncode)
+
+    return 0
