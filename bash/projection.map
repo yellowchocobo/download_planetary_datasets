@@ -1,0 +1,5 @@
+Group = Mapping
+  ProjectionName  = SimpleCylindrical
+  CenterLongitude = 0.0
+End_Group
+End
