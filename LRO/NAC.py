@@ -177,7 +177,7 @@ def download(filename):
     """
     filename_p = Path(filename)
 
-    list_files = subprocess.run(["wget", "-nd", "-i", filename_p.as_posix()])
+    list_files = subprocess.run(["wget", "-P", filename_p.parent.as_posix(), "-nd", "-i", filename_p.as_posix()])
     print("The exit code was: %d" % list_files.returncode)
 
     return 0
