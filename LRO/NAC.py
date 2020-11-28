@@ -192,15 +192,18 @@ def filter_footprints(geopackage,
     return (gdf_selection)
 
 
-def get_url_for_download(output_filename, gdf_selection):
+def get_url_for_download(output_filename, gdf_selection, output_dir='.'):
     '''   
 
     Parameters
     ----------
-    output_filename : output text filename
+
+    output_filename : output text filename ('*.csv')
         path.
     gdf_selection : GeoPandas DataFrame
         DESCRIPTION.
+    output_dir : output directory.
+        str
 
     Returns
     -------
@@ -212,29 +215,50 @@ def get_url_for_download(output_filename, gdf_selection):
     # write in your terminal
     wget -nc -i <text_file_containing_urls_to_download>
 
-    '''    
+    '''
+    path = Path(output_dir)
+    apath = path.absolute()
+
+    outfile = apath / output_filename
+
     gdf_selection["url_nac"] = ("http://lroc.sese.asu.edu/data/" +
                                gdf_selection.file_speci)
     url_nac = gdf_selection.url_nac
-    url_nac.to_csv(output_filename, header=False, index=None, sep=',')
+    url_nac.to_csv(outfile, header=False, index=None, sep=',')
     
-def to_shp(output_name, gdf_selection):
+def to_shp(output_filename, gdf_selection, output_dir='.'):
     '''
 
     Parameters
     ----------
-    output_name : str
+    output_filename : str
         absolute path to filename
     gdf_selection : GeoPandas DataFrame
         DESCRIPTION.
+    output_dir: str
+        Absolute or relative output dir
 
     Returns
     -------
     None.
 
     '''
-    gdf_selection.to_file(output_name, driver = 'ESRI Shapefile')
-    print ("Shapefile " + output_name + " has been generated")
+    path = Path(output_dir)
+    apath = path.absolute()
+
+    if "shp" in output_filename:
+        outfile = apath / output_filename
+        gdf_selection.to_file(outfile, driver = 'ESRI Shapefile')
+        print ("Shapefile " + outfile.as_posix() + " has been generated")
+
+    elif "gpkg" in output_filename:
+        geopackage, layer = output_filename.split(',')
+        outfile = apath / geopackage
+        gdf_selection.to_file(outfile, layer=layer, driver='GPKG')
+        print("Layer " + layer + " has been generated in geopackage " + outfile.as_posix())
+
+    else:
+        print ("the specified format is not recognized")
     
 
 # TODO
@@ -262,8 +286,40 @@ def download(filename):
 
     return 0
 
-#TODO 
-def map_projection_ISIS3(gdf_selection, common_projection=False):
+#TODO
+
+def create_map_projection(lat, lon, product_id='projection', output_dir='.'):
+
+    """
+
+    Parameters
+    ----------
+    lat
+    lon
+    product_id
+    output_dir
+
+    Returns
+    -------
+
+    """
+
+    path = Path(output_dir)
+    apath = path.absolute()
+
+    outfile = apath / (product_id + '.map')
+
+    print("creating .map projection file " + outfile.as_posix() + " ...")
+
+    with open(outfile, 'w+') as f:
+        f.write('Group = Mapping\n')
+        f.write('    ProjectionName  = EQUIRECTANGULAR\n')
+        f.write('    CenterLongitude = ' + str(np.round(lon, decimals=2)) + '\n')
+        f.write('    CenterLatitude = ' + str(np.round(lat, decimals=2)) + '\n')
+        f.write('End_Group\n')
+        f.write('End')
+
+def map_projection_ISIS3(gdf_selection, common_projection=False, output_dir='.'):
 
     """
     To finish
@@ -291,5 +347,12 @@ def map_projection_ISIS3(gdf_selection, common_projection=False):
     """
     if common_projection:
         lat = np.round(np.average(gdf_selection.center_lat.values), decimals=2)
+        lon = np.round(np.average(gdf_selection.center_lon.values), decimals=2)
+
+        create_map_projection(lat, lon, product_id='projection', output_dir=output_dir)
     else:
-        lat = np.round(gdf_selection.center_lat.values, decimals=2)
+        for i in range(gdf_selection.shape[0]):
+            create_map_projection(gdf_selection.center_lat.iloc[i],
+                                  gdf_selection.center_lon.iloc[i],
+                                  product_id=gdf_selection.product_id.iloc[i],
+                                  output_dir=output_dir)
