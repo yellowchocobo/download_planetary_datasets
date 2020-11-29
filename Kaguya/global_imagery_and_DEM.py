@@ -66,17 +66,17 @@ def get_main_repo_links(product_name):
         elif product_name == "TCO_MAP_02":
             default_link = kaguya_repo + 'sln-l-tc-5-ortho-map-v2.0/'
             default_link2 = '/data/TCO_MAP_02_'
-            degrees_per_latlon = 1
+            degrees_per_latlon = 3
             
         elif product_name == "TCO_MAPe04":
             default_link = kaguya_repo + 'sln-l-tc-5-evening-map-v4.0/'
             default_link2 = '/data/TCO_MAPe04_'
-            degrees_per_latlon = 1
+            degrees_per_latlon = 3
             
         elif product_name == "TCO_MAPm04":
             default_link = kaguya_repo + 'sln-l-tc-5-morning-map-v4.0/'
             default_link2 = '/data/TCO_MAPm04_'
-            degrees_per_latlon = 1
+            degrees_per_latlon = 3
             
         return (default_link, default_link2, degrees_per_latlon)
             
@@ -130,34 +130,35 @@ def get_links_for_download(output_folder,
     # product (as well as the width and height of each tile)
     (default_link, default_link2, degrees_per_latlon) = (
         get_main_repo_links(product_name))
-        
+
     for i in range(min_longitude, max_longitude, degrees_per_latlon):
-        
+
         lon1 = 'lon' + str(int(i)).zfill(3)
         lon2 = 'E' + str(int(i)).zfill(3)
-        
+
         if i + degrees_per_latlon == 360:
-            #lon3 = 'E' + str(int(0)).zfill(3) # for DTM_MAP
-            lon3 = 'E' + str(int(i+degrees_per_latlon)).zfill(3)
-        else:    
-            lon3 = 'E' + str(int(i+degrees_per_latlon)).zfill(3)
-        
+            # lon3 = 'E' + str(int(0)).zfill(3) # for DTM_MAP
+            lon3 = 'E' + str(int(i + degrees_per_latlon)).zfill(3)
+        else:
+            lon3 = 'E' + str(int(i + degrees_per_latlon)).zfill(3)
+
         '''
         Must modify if we want data all the way up to 90 degrees
         '''
+
         for j in range(min_latitude, max_latitude, degrees_per_latlon):
-            
-            if j  < 0:
-                lat1 = 'S' + str(int(abs(j))).zfill(2)
-                lat2 = 'S' + str(int(abs(j-degrees_per_latlon))).zfill(2)
-                
-            elif j == 0:
-                lat1 = 'N' + str(int(abs(j))).zfill(2)
-                lat2 = 'S' + str(int(abs(j-degrees_per_latlon))).zfill(2)
-                
+
+            if j < -degrees_per_latlon:
+                lat1 = 'S' + str(int(abs(j + degrees_per_latlon))).zfill(2)
+                lat2 = 'S' + str(int(abs(j))).zfill(2)
+
+            elif j == -degrees_per_latlon:
+                lat1 = 'N' + str(int(abs(j + degrees_per_latlon))).zfill(2)
+                lat2 = 'S' + str(int(abs(j))).zfill(2)
+
             else:
-                lat1 = 'N' + str(int(abs(j))).zfill(2)
-                lat2 = 'N' + str(int(abs(j-degrees_per_latlon))).zfill(2)
+                lat1 = 'N' + str(int(abs(j + degrees_per_latlon))).zfill(2)
+                lat2 = 'N' + str(int(abs(j))).zfill(2)
 
             # do
             img_to_download.append(default_link + lon1 + default_link2 + 
