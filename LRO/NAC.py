@@ -217,6 +217,7 @@ def get_url_for_download(output_filename, gdf_selection, output_dir='.'):
 
     '''
     path = Path(output_dir)
+    path.mkdir(parents=True, exist_ok=True)
     apath = path.absolute()
 
     outfile = apath / output_filename
