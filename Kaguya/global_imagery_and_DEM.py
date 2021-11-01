@@ -27,6 +27,7 @@ get_links_for_download("/home/nilscp/", "DTM_MAP_01", 40, 50, 10, 20)
 """
 
 import numpy as np
+from pathlib import Path
 
 '''
 **************************************************************************************************
@@ -166,8 +167,9 @@ def get_links_for_download(output_folder,
             
             lbl_to_download.append(default_link + lon1 + default_link2 + 
                                    lat1 + lon2 + lat2 + lon3 + 'SC.lbl')
-            
-            
+
+    Path(output_folder + product_name).mkdir(parents=True,
+                                             exist_ok=True)
     np.savetxt(output_folder + product_name + '_download.txt', 
                np.array(img_to_download + lbl_to_download), fmt="%s")
     
