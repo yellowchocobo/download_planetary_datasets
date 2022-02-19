@@ -26,12 +26,90 @@ Example
 get_links_for_download("/home/nilscp/", "DTM_MAP_01", 40, 50, 10, 20)
 """
 
+import glob
 import numpy as np
 from pathlib import Path
-
+import requests
 '''
 **************************************************************************************************
 '''
+def is_website(urls):
+    '''
+    filename = '/media/nilscp/pampa/Kaguya/SLDEM2013/DTM_MAP_01_download.txt'
+    with open(filename, 'r') as f:
+        data = f.readlines()
+
+    not_valid_url = is_website(data)
+    '''
+
+    not_valid_url = []
+
+    for url in urls:
+        response = requests.head(url.strip('\n'))
+        if response.status_code < 400:
+            None
+        else:
+            not_valid_url.append(url)
+
+    return (not_valid_url)
+
+def diff(list1, list2):
+    return list(set(list1) - set(list2))
+
+def diff_download(folder, in_text_filename):
+
+    in_text_filename = Path(in_text_filename)
+    folder = Path(folder)
+
+    IMG = glob.glob(folder.as_posix() + "/*.img")
+    LBL = glob.glob(folder.as_posix() + "/*.lbl")
+
+    IMG_fname = []
+    LBL_fname = []
+    files_in_text = []
+
+    for i in IMG:
+        IMG_fname.append(i.split('/')[-1])
+
+    for l in LBL:
+        LBL_fname.append(l.split('/')[-1])
+
+    with open(in_text_filename , 'r') as f:
+        lines = f.readlines()
+
+    for li in lines:
+        files_in_text.append(li.split("/")[-1][:-1])
+
+    # To get elements which are in list but not in list2
+    list_diff = diff(files_in_text, IMG_fname + LBL_fname)
+
+    new_lines = []
+    s = set(list_diff)
+    for l in lines:
+        if l.split('/')[-1][:-1] in s:
+            new_lines.append(l)
+        else:
+            None
+
+    with open(in_text_filename.with_name("download-forward2.txt"), 'w') as w:
+        w.write(''.join(new_lines))
+
+    with open(in_text_filename.with_name("download-backward2.txt"), 'w') as w:
+        w.write(''.join(new_lines[::-1]))
+
+
+def remove_already_downloaded(text_filename, new_filename,
+                              last_downloaded_file):
+
+    with open(text_filename, 'r') as f:
+        lines = f.readlines()
+
+    for i, l in enumerate(lines):
+        if l.endswith(last_downloaded_file + '\n'):
+            break
+
+    with open(new_filename, 'a') as f:
+        f.write(''.join(lines[i:]))
 
 def get_main_repo_links(product_name):
     
@@ -138,8 +216,10 @@ def get_links_for_download(output_folder,
         lon2 = 'E' + str(int(i)).zfill(3)
 
         if i + degrees_per_latlon == 360:
-            # lon3 = 'E' + str(int(0)).zfill(3) # for DTM_MAP
-            lon3 = 'E' + str(int(i + degrees_per_latlon)).zfill(3)
+            if product_name == "DTM_MAP_01":
+                lon3 = 'E' + str(int(0)).zfill(3) # for DTM_MAP
+            else:
+                lon3 = 'E' + str(int(i + degrees_per_latlon)).zfill(3)
         else:
             lon3 = 'E' + str(int(i + degrees_per_latlon)).zfill(3)
 
