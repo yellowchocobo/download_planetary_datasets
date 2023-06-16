@@ -40,6 +40,29 @@ def EQC_360_to_180_domain(ulx_scy_360, lrx_scy_360, width, cellsize):
     
     return (ulx_sc180, lrx_sc180)
 
+
+def translate_batch(path_raster):
+    # change directory
+    os.chdir(path_raster)
+    img_list = glob.glob("*.img")
+    img_dummy = Path(path_raster) / 'dummy.img'
+
+    for img in img_list:
+
+        try:
+            filename_img = img_dummy.with_name(img)
+            filename_tif = img_dummy.with_name(img.split(".img")[0] + ".tif")
+            filename_lbl = img_dummy.with_name(img.split(".img")[0] + ".lbl")
+
+            translate([filename_lbl, filename_tif])
+
+            # remove files, and rename final tif file
+            filename_img.unlink()
+            filename_lbl.unlink()
+
+        except:
+            None
+
 def DTMMAP_360_to_180_domain(path_raster):
     
     
@@ -50,33 +73,38 @@ def DTMMAP_360_to_180_domain(path_raster):
 
     for img in img_list:
 
-        filename_img = img_dummy.with_name(img)
-        filename_tif = img_dummy.with_name(img.split(".img")[0] + ".tif")
-        filename_lbl = img_dummy.with_name(img.split(".img")[0] + ".lbl")
-        filename_tif_shifted = img_dummy.with_name(img.split(".img")[0] + "_shifted.tif")
-        
-        translate([filename_lbl, filename_tif])
+        try:
 
-        meta = utils.get_raster_profile(filename_tif)
-        resolution = utils.get_raster_resolution(filename_tif)
-        width = meta['width']
-        bbox = utils.get_raster_bbox(filename_tif) #xmin, ymin, xmax, ymax
+            filename_img = img_dummy.with_name(img)
+            filename_tif = img_dummy.with_name(img.split(".img")[0] + ".tif")
+            filename_lbl = img_dummy.with_name(img.split(".img")[0] + ".lbl")
+            filename_tif_shifted = img_dummy.with_name(img.split(".img")[0] + "_shifted.tif")
 
-        ulx = bbox[0]
-        uly = bbox[-1]
-        lrx = bbox[2]
-        lry = bbox[1]
+            translate([filename_lbl, filename_tif])
 
-        (ulx_sc180, lrx_sc180) = EQC_360_to_180_domain(ulx,
-                                                       lrx,
-                                                       width,
-                                                       cellsize=resolution[0])
+            meta = utils.get_raster_profile(filename_tif)
+            resolution = utils.get_raster_resolution(filename_tif)
+            width = meta['width']
+            bbox = utils.get_raster_bbox(filename_tif) #xmin, ymin, xmax, ymax
 
-        translate(['-a_ullr', str(ulx_sc180), str(uly), str(lrx_sc180),
-                   str(lry), filename_tif, filename_tif_shifted])
-        
-        # remove files, and rename final tif file
-        filename_img.unlink()
-        filename_lbl.unlink()
-        filename_tif.unlink()
-        filename_tif_shifted.rename(filename_tif.as_posix())
+            ulx = bbox[0]
+            uly = bbox[-1]
+            lrx = bbox[2]
+            lry = bbox[1]
+
+            (ulx_sc180, lrx_sc180) = EQC_360_to_180_domain(ulx,
+                                                           lrx,
+                                                           width,
+                                                           cellsize=resolution[0])
+
+            translate(['-a_ullr', str(ulx_sc180), str(uly), str(lrx_sc180),
+                       str(lry), filename_tif, filename_tif_shifted])
+
+            # remove files, and rename final tif file
+            filename_img.unlink()
+            filename_lbl.unlink()
+            filename_tif.unlink()
+            filename_tif_shifted.rename(filename_tif.as_posix())
+
+        except:
+            None

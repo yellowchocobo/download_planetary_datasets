@@ -89,3 +89,41 @@ for DTM in DTM_AMES:
         
         
 np.savetxt("NAC_DTM_AMES.txt", DTM_AMES_FINAL, fmt="%s")
+
+
+
+###### another way
+
+from pathlib import Path
+from bs4 import BeautifulSoup
+import requests
+
+nac_dtm_p = "http://pds.lroc.asu.edu/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/NAC_DTM/"
+
+
+
+def find_files(url):
+    soup = BeautifulSoup(requests.get(url).text)
+
+    hrefs = []
+
+    for a in soup.find_all('a'):
+        hrefs.append(a['href'])
+
+    return hrefs
+
+folders = find_files(nac_dtm_p)
+
+folders = folders[5:]
+files = []
+
+for f in folders:
+   files.append(nac_dtm_p + f + ("NAC_DTM_" + f[:-1] + ".TIF"))
+   files.append(nac_dtm_p + f + ("NAC_DTM_" + f[:-1] + ".LBL"))
+
+
+test = "\n".join(files)
+
+
+with open('/media/nilscp/pampa/NAC_DTM/WMS.txt', 'w') as f:
+    f.write(test) 

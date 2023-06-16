@@ -56,6 +56,39 @@ def is_website(urls):
 def diff(list1, list2):
     return list(set(list1) - set(list2))
 
+def intersection(list1, list2):
+    ind_dict = dict((k, i) for i, k in enumerate(list1))
+    inter = set(ind_dict).intersection(list2)
+    indices = [ind_dict[x] for x in inter]
+    return indices
+
+def find_corresponding_img(folder, in_text_filename):
+    in_text_filename = Path(in_text_filename)
+    folder = Path(folder)
+
+    LBL = glob.glob(folder.as_posix() + "/*.lbl")
+
+    lbl_list = []
+    for l in LBL:
+        lbl_list.append(l.split("/")[-1])
+
+    with open(in_text_filename , 'r') as f:
+        lines = f.readlines()
+
+    files_in_text = []
+    for li in lines:
+        files_in_text.append(li.split("/")[-1][:-1])
+
+    indices = intersection(files_in_text, lbl_list)
+
+    new_lines = []
+    for i in indices:
+        new_lines.append(lines[i].replace('.lbl', '.img'))
+
+    with open(in_text_filename.with_name("download-additional.txt"), 'w') as w:
+        w.write(''.join(new_lines))
+
+
 def diff_download(folder, in_text_filename):
 
     in_text_filename = Path(in_text_filename)

@@ -8,8 +8,7 @@ Created on Thu Apr  6 09:04:15 2017
 #from ftplib import FTP
 import os, os.path
 import re
-import urllib
-import urllib2
+import urllib3
 import numpy as np
 
 # main path
@@ -45,12 +44,34 @@ for ix, f in enumerate(folders):
 # load data
 data = np.genfromtxt(path_down + filename,delimiter=",",skip_header=1)
 
-maxlat = np.around(data[:,3],decimals=2)
-minlat = np.around(data[:,4],decimals=2)
-westernlon = np.around(data[:,5],decimals=2)
-easternlon = np.around(data[:,6],decimals=2)
+maxlat = -0.29
+minlat = -0.53
+westernlon = 32.57
+easternlon = 32.82
 
-easternlon2 = np.around(data[:,2],decimals=2)
+tmp_url = (default_url1 + str(maxlat) + default_url2 + str(minlat)
+           + default_url3 + str(westernlon) + default_url4 + str(
+            easternlon))
+
+http = urllib3.PoolManager()
+r = http.request('GET', tmp_url)
+
+data = str(r.data).split('</URL>')
+
+lst_shp = []
+
+word = '_shp'
+pattern = re.compile(word)
+
+for line in data:
+
+    if (pattern.search(line)):
+        tmp_line = line.split('<URL>')[1]
+        lst_shp.append(tmp_line)
+
+for shpf in lst_shp:
+    fname = shpf.split('/')[-1]
+    r.geturl(shpf, path_down + fname)
 
 
 '''
@@ -77,7 +98,7 @@ default_url4 = '&easternlon='
 # get the lola data url for all craters 
 lst_url = []
 
-for ix, val in np.ndenumerate(maxlat):
+for ix, val in enumerate([maxlat]):
     
     tmp_url = (default_url1 + str(maxlat[ix]) + default_url2 + str(minlat[ix])
     + default_url3 + str(westernlon[ix]) + default_url4 + str(easternlon[ix]))
@@ -91,7 +112,7 @@ for ix, t_url in enumerate(lst_url):
     patht = paths + folders[ix] + '/'
     os.chdir(patht)
 
-    response = urllib2.urlopen(t_url)
+    response = urllib3.urlopen(t_url)
     html = response.read()
 
     data = html.split('</URL>')
@@ -109,7 +130,7 @@ for ix, t_url in enumerate(lst_url):
             
     for shpf in lst_shp:
         fname = shpf.split('/')[-1]
-        urllib.urlretrieve(shpf,patht+fname)
+        urllib3.urlretrieve(shpf,patht+fname)
         
 
     

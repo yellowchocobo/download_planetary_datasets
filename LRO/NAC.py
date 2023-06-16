@@ -1,7 +1,10 @@
 '''
 check http://wms.lroc.asu.edu/lroc/thumbnails
+check https://wms.lroc.asu.edu/lroc/rdr_product_select (selecting for shapefiles)
 Check RDR products and shapefile products. There, it should be
 website for more footprint products of NAC & WAC images.
+
+Right now there is a mix of CDR and EDR in the footprints (which is very annoying!), why are they giving footprints of CDR...
 
 Example
 -------  
@@ -33,11 +36,13 @@ import numpy as np
 import subprocess
 import sys
 from pathlib import Path
+from shapely.geometry import box
 
 sys.path.append("/home/nilscp/GIT/rastertools/")
 import generalutils
+import crs
 
-def select_geopackage(range_latitude, lon_format=360):
+def select_shapefile(lon_format=360):
 
     """
 
@@ -53,75 +58,65 @@ def select_geopackage(range_latitude, lon_format=360):
     Path to footprint geopackage
     """
 
-    footprints_geopackage = Path("/home/nilscp/Downloads/NAC_footprints/geopackage")
+    if lon_format == 360:
+        footprints_p = Path("/home/nilscp/QGIS/Moon/NAC_footprints/NAC_footprints_360.shp")
+    else:
+        footprints_p = Path("/home/nilscp/QGIS/Moon/NAC_footprints/NAC_footprints_180.shp")
 
-    # Equatorial
-    if np.logical_and(min(range_latitude) > -60.0, max(range_latitude) < 60.0):
-        if lon_format == 360:
-            geopackage = footprints_geopackage.with_name("NAC_footprints_EQ360.gpkg")
+    return footprints_p
+
+def spatial_query(range_latitude, range_longitude, lon_format):
+    input_dir = Path("/home/nilscp/QGIS/Moon/NAC_footprints")
+    all_gdfs = []
+    dir_180 = list(input_dir.glob("NAC*_180"))
+    bbox = box(range_longitude[0], range_latitude[0],
+               range_longitude[1], range_latitude[1])
+
+    gs_bbox = gpd.GeoSeries(bbox, crs=crs.Moon_2000())
+
+    if lon_format == 180:
+        input_dir = list(input_dir.rglob("NAC*_180"))
+    else:
+        input_dir = list(input_dir.rglob("NAC*_360"))
+
+    all_gdfs = []
+    for d in input_dir:
+        # get crs without opening the file
+        if d.name.split("_")[1] == "SP":
+            shp_crs = crs.Moon_South_Pole_Stereographic()
+        elif d.name.split("_")[1] == "NP":
+            shp_crs = crs.Moon_North_Pole_Stereographic()
         else:
-            geopackage = footprints_geopackage.with_name("NAC_footprints_EQ180.gpkg")
+            shp_crs = crs.Moon_2000()
 
-    # North pole
-    if min(range_latitude) > 60.0:
-        if lon_format == 360:
-            geopackage = footprints_geopackage.with_name("NAC_footprints_NP360.gpkg")
+        gs_bbox_proj = gs_bbox.to_crs(shp_crs)
+
+        gdf = gpd.read_file(list(d.glob("*.SHP"))[0], bbox=gs_bbox_proj)
+
+        if lon_format == 180:
+            gdf_proj = gdf.to_crs(crs.Moon_Equirectangular())
         else:
-            geopackage = footprints_geopackage.with_name("NAC_footprints_NP180.gpkg")
+            gdf_proj = gdf.to_crs(crs.Moon_Equirectangular_360())
+        all_gdfs.append(gdf_proj)
 
-    # South pole
-    if max(range_latitude) < -60.0:
-        if lon_format == 360:
-            geopackage = footprints_geopackage.with_name("NAC_footprints_SP360.gpkg")
-        else:
-            geopackage = footprints_geopackage.with_name("NAC_footprints_SP180.gpkg")
+    gdf_boulders = gpd.GeoDataFrame(pd.concat(all_gdfs, ignore_index=True))
+    return gdf_boulders
 
-    return geopackage
-
-def select_footprints(geopackage,
-                      range_latitude,
-                      range_longitude,
-                      range_incidence = (0.0, 180.0),
-                      range_emission = (0.0, 90.0),
-                      range_phase = (0.0, 180.0)):
-
-    """
-    TODO: It would have been better to save the results of this function for EQ, NP and SP to a sql database. For
-    now, I am filtering every layer to avoid to load 1 million footprints, a process which takes quite lot of time.
-
-    Parameters
-    ----------
-    geopackage
-
-    Returns
-    -------
-
-    """
-
-    layers = generalutils.listLayers(geopackage)
-    gdfs_list = []
-    for i, layer in enumerate(layers):
-        gdfs_list.append(filter_footprints(geopackage,
-                                           layer,
-                                           range_latitude,
-                                           range_longitude,
-                                           range_incidence,
-                                           range_emission,
-                                           range_phase))
-
-    gdfs = gpd.GeoDataFrame(pd.concat(gdfs_list, ignore_index=True), crs=gdfs_list[0].crs)
-
-    return gdfs
+def id_query(gdf, id):
+    # single query (e.g., one id -> 'M139694087LE' or pair of id ->'M139694087')
+    if type(id) == str:
+        gdf_selection = gdf[gdf.product_id.str.startswith(id)]
+    # or multiple queries -> ['M139694087LE', 'M139694087RE']
+    else:
+        gdf_selection = gdf[gdf['product_id'].isin(id)]
+    return gdf_selection
 
 
-
-def filter_footprints(geopackage,
-                      layer,
-                      range_latitude,
-                      range_longitude,
-                      range_incidence = (0.0, 180.0),
-                      range_emission = (0.0, 90.0),
-                      range_phase = (0.0, 180.0)):
+def filter_query(gdf_footprints,
+                 max_resolution= 9999.0,
+                 range_incidence = (0.0, 180.0),
+                 range_emission = (0.0, 90.0),
+                 range_phase = (0.0, 180.0)):
     
     """
     Select available footprints based on latitude and longitude
@@ -130,12 +125,6 @@ def filter_footprints(geopackage,
     ----------
     geopackage : Path
         geopackage containing footprint layers
-    layer : layer in geopackage
-        str
-    range_latitude : tuple of float or int (lat_min, lat_max)
-        range of possible values, -90 to 90.
-    range_longitude : tuple of float or int (lon_min, lon_max)
-        range of possible values, 0 to 360.
     range_incidence : optional, tuple of float or int  (inc_min, inc_max)
         range of possible values, 0 to 180.
     range_emission : optional, tuple of float or int (emi_min, emi_max)
@@ -148,51 +137,34 @@ def filter_footprints(geopackage,
     gdf_selection : GeoPandas dataframe
         GeoPandas dataframe based on specified latitude, longitude, incidence, emission and phase
     """
-    gdf_footprints = gpd.read_file(filename=geopackage, layer=layer)
+    # selection of resolution
+    gdf_footprints = gdf_footprints[gdf_footprints.RESOLUTION < max_resolution]
 
-    # TODO I need to figure why it is not working with the lunar proj. coord
-    #gdf_footprints.crs = "EPSG:104903"
-    
-    # selection of latitudes
-    lat_selection = np.logical_and(
-        gdf_footprints.center_lat >= range_latitude[0],
-        gdf_footprints.center_lat <= range_latitude[1])
-    
-    
-    # selection of longitudes
-    lon_selection = np.logical_and(
-        gdf_footprints.center_lon >= range_longitude[0],
-        gdf_footprints.center_lon <= range_longitude[1])
-    
-    # selection of footprints for specified latitudes and longitudes
-    latlon_selection = np.logical_and(lat_selection, lon_selection)
-    gdf_latlon_selection = gdf_footprints[latlon_selection]
-    
     # selection of incidence angles
     inc_selection = np.logical_and(
-            gdf_latlon_selection.inc_angle >= range_incidence[0],
-            gdf_latlon_selection.inc_angle <= range_incidence[1])
-    
+            gdf_footprints.INC_ANGLE >= range_incidence[0],
+            gdf_footprints.INC_ANGLE <= range_incidence[1])
+
     # selection of emission angles
     emi_selection = np.logical_and(
-            gdf_latlon_selection.emssn_ang >= range_emission[0],
-            gdf_latlon_selection.emssn_ang <= range_emission[1])
-    
+            gdf_footprints.EMSSN_ANG >= range_emission[0],
+            gdf_footprints.EMSSN_ANG <= range_emission[1])
+
     # selection of phase angles
     pha_selection = np.logical_and(
-            gdf_latlon_selection.phase_angl >= range_phase[0],
-            gdf_latlon_selection.phase_angl <= range_phase[1])
-    
+            gdf_footprints.PHASE_ANGL >= range_phase[0],
+            gdf_footprints.PHASE_ANGL <= range_phase[1])
+
     # dataframe selection
     selection = np.logical_and(np.logical_and(inc_selection, emi_selection),
                                pha_selection)
-                               
-    gdf_selection = gdf_latlon_selection[selection]
-    
+
+    gdf_selection = gdf_footprints[selection]
+
     return (gdf_selection)
 
 
-def get_url_for_download(output_filename, gdf_selection, output_dir='.'):
+def get_url_for_download(gdf_selection, output_filename, output_dir='.'):
     '''   
 
     Parameters
@@ -223,51 +195,9 @@ def get_url_for_download(output_filename, gdf_selection, output_dir='.'):
     outfile = apath / output_filename
 
     gdf_selection["url_nac"] = ("http://lroc.sese.asu.edu/data/" +
-                               gdf_selection.file_speci)
+                               gdf_selection.FILE_SPECI)
     url_nac = gdf_selection.url_nac
     url_nac.to_csv(outfile, header=False, index=None, sep=',')
-    
-def to_shp(output_filename, gdf_selection, output_dir='.'):
-    '''
-
-    Parameters
-    ----------
-    output_filename : str
-        absolute path to filename
-    gdf_selection : GeoPandas DataFrame
-        DESCRIPTION.
-    output_dir: str
-        Absolute or relative output dir
-
-    Returns
-    -------
-    None.
-
-    '''
-    path = Path(output_dir)
-    apath = path.absolute()
-
-    if "shp" in output_filename:
-        outfile = apath / output_filename
-        gdf_selection.to_file(outfile, driver = 'ESRI Shapefile')
-        print ("Shapefile " + outfile.as_posix() + " has been generated")
-
-    elif "gpkg" in output_filename:
-        geopackage, layer = output_filename.split(',')
-        outfile = apath / geopackage
-        gdf_selection.to_file(outfile, layer=layer, driver='GPKG')
-        print("Layer " + layer + " has been generated in geopackage " + outfile.as_posix())
-
-    else:
-        print ("the specified format is not recognized")
-    
-
-# TODO
-# overlap of a polygon shapefile with footprint
-# or get max boundary from shapefiles and feed it in the selection.
-def overlap():
-    None
-
 
 def download(filename):
     """
@@ -287,9 +217,7 @@ def download(filename):
 
     return 0
 
-#TODO
-
-def create_map_projection(lat, lon, product_id='projection', output_dir='.'):
+def create_map_projection(lat, lon, proj_name='projection', output_dir='.'):
 
     """
 
@@ -308,7 +236,7 @@ def create_map_projection(lat, lon, product_id='projection', output_dir='.'):
     path = Path(output_dir)
     apath = path.absolute()
 
-    outfile = apath / (product_id + '.map')
+    outfile = apath / (proj_name + '.map')
 
     print("creating .map projection file " + outfile.as_posix() + " ...")
 
